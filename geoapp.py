@@ -97,7 +97,7 @@ fig.update_layout(
         "below": "traces"
     }],
     margin={"r": 0, "t": 40, "l": 0, "b": 0},
-    title="Os pontos das cidades variam de coro conforme a região, e o tamanho aumenta quando a cidade"
+    title="Os pontos das cidades variam de cor conforme a região, e o tamanho aumenta quando a cidade "
     "possui mais de uma loja. As áreas escuras representam regiões com a mesma coordenação."
 )
 
