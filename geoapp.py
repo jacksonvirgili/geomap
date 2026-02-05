@@ -35,9 +35,7 @@ def load_geojson():
 
 @st.cache_data
 def load_data():
-    # 🔁 TROQUE A URL ABAIXO PELO SEU LINK RAW DO GITHUB
-    csv_url = "https://raw.githubusercontent.com/SEU_USUARIO/SEU_REPOSITORIO/main/geodata.csv"
-    return pd.read_csv(csv_url)
+    return pd.read_csv("geodata.csv")
 
 geojson_br = load_geojson()
 df_agg = load_data()
