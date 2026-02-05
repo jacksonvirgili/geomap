@@ -97,7 +97,8 @@ fig.update_layout(
         "below": "traces"
     }],
     margin={"r": 0, "t": 40, "l": 0, "b": 0},
-    title="Mapa de Cidades por Regional e Coordenador"
+    title="Os pontos das cidades variam de coro conforme a região, e o tamanho aumenta quando a cidade"
+    "possui mais de uma loja. As áreas escuras representam regiões com a mesma coordenação."
 )
 
 # --------------------------------------------------
