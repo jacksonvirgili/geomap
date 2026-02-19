@@ -214,7 +214,7 @@ fig.update_layout(
         },
     ],
     margin={"r": 0, "t": 40, "l": 0, "b": 0},
-    title=f"{titulo}<br><sup>{descricao}</sup>"
+    title=f"{titulo}<br>"
 )
 
 # --------------------------------------------------
