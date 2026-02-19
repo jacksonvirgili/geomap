@@ -31,17 +31,35 @@ st.title("🗺️ Mapa de Cidades por Regional e Coordenador")
 @st.cache_data
 def load_geojson():
     url = "https://raw.githubusercontent.com/codeforamerica/click_that_hood/master/public/data/brazil-states.geojson"
-    return requests.get(url).json()
+    # Dica: adicione timeout para evitar travar caso o host esteja lento
+    return requests.get(url, timeout=20).json()
 
 @st.cache_data
 def load_data():
+    # Espera colunas: ['REGIONAL', 'COORDENADOR', 'CIDADE', 'latitude', 'longitude', 'QTD_LOJAS']
     return pd.read_csv("geodata.csv")
 
 geojson_br = load_geojson()
 df_agg = load_data()
 
 # --------------------------------------------------
-# Scatter mapbox base
+# NOVO: Filtros encadeados no sidebar
+# --------------------------------------------------
+st.sidebar.header("Filtros")
+regionais = sorted(df_agg['REGIONAL'].dropna().unique().tolist())
+regional_sel = st.sidebar.selectbox("Regional", options=["Todos"] + regionais, index=0)
+
+if regional_sel == "Todos":
+    coords_filtrados = sorted(df_agg['COORDENADOR'].dropna().unique().tolist())
+else:
+    coords_filtrados = sorted(
+        df_agg.loc[df_agg['REGIONAL'] == regional_sel, 'COORDENADOR'].dropna().unique().tolist()
+    )
+
+coord_sel = st.sidebar.selectbox("Coordenador", options=["Todos"] + coords_filtrados, index=0)
+
+# --------------------------------------------------
+# Scatter mapbox base (pontos por REGIONAL)
 # --------------------------------------------------
 fig = px.scatter_mapbox(
     df_agg,
@@ -59,32 +77,119 @@ fig = px.scatter_mapbox(
     height=600
 )
 
-# --------------------------------------------------
-# Polígonos (áreas dos coordenadores)
-# --------------------------------------------------
-for coord in df_agg['COORDENADOR'].unique():
-    df_coord = df_agg[df_agg['COORDENADOR'] == coord]
-
-    if len(df_coord) >= 3:
-        points = df_coord[['longitude', 'latitude']].to_numpy()
-        hull = ConvexHull(points)
-
-        polygon_lon = points[hull.vertices, 0].tolist() + [points[hull.vertices, 0][0]]
-        polygon_lat = points[hull.vertices, 1].tolist() + [points[hull.vertices, 1][0]]
-
-        fig.add_trace(go.Scattermapbox(
-            lon=polygon_lon,
-            lat=polygon_lat,
-            mode='lines',
-            fill='toself',
-            fillcolor='rgba(0,0,0,0.15)',
-            line=dict(color='rgba(0,0,0,0)'),
-            showlegend=False
-        ))
+# Índice dos traces base (pontos por regional do PX)
+base_traces_count = len(fig.data)
 
 # --------------------------------------------------
-# Layout final
+# NOVO: Construir polígonos (ConvexHull) por (REGIONAL, COORDENADOR)
+# e guardar índices para controlar visibilidade
 # --------------------------------------------------
+def neutral_fill(alpha=0.15):
+    return f"rgba(60,60,60,{alpha})"  # cinza translúcido, igual ao seu
+
+regional_trace_indices = {reg: [] for reg in df_agg['REGIONAL'].dropna().unique()}
+coord_trace_indices = {}   # mapeia coordenador -> [índices de traces]
+polygon_indices = []       # todos os índices de polígonos (para liga/desliga em massa)
+
+# OBS: usamos (REGIONAL, COORDENADOR) para poder filtrar de forma encadeada
+for (regional, coord), df_coord in df_agg.groupby(["REGIONAL", "COORDENADOR"]):
+    pts = df_coord[['longitude', 'latitude']].to_numpy()
+    pts = np.unique(pts, axis=0)  # evita pontos duplicados no hull
+    if len(pts) < 3:
+        continue  # sem hull
+
+    hull = ConvexHull(pts)
+    polygon_lon = pts[hull.vertices, 0].tolist() + [pts[hull.vertices, 0][0]]
+    polygon_lat = pts[hull.vertices, 1].tolist() + [pts[hull.vertices, 1][0]]
+
+    # Mantém o mesmo estilo de área escura/translúcida e sem borda destacada
+    fig.add_trace(go.Scattermapbox(
+        lon=polygon_lon,
+        lat=polygon_lat,
+        mode='lines',
+        fill='toself',
+        fillcolor=neutral_fill(0.15),
+        line=dict(color='rgba(0,0,0,0)'),  # sem borda visível (como no seu)
+        showlegend=False,
+        hovertemplate="<b>Coordenador:</b> %{text}<br>Regional: " + str(regional) + "<extra></extra>",
+        text=[str(coord)] * len(polygon_lon),
+        opacity=0.95,
+        visible=True
+    ))
+
+    idx_poly = len(fig.data) - 1
+    regional_trace_indices[regional].append(idx_poly)
+    coord_trace_indices.setdefault(str(coord), []).append(idx_poly)
+    polygon_indices.append(idx_poly)
+
+# --------------------------------------------------
+# NOVO: Função de visibilidade encadeada
+# --------------------------------------------------
+def visibility_mask_both(show_regional=None, show_coord=None):
+    """
+    - Pontos (traces base) SEMPRE visíveis
+    - Polígonos (áreas):
+        * Sem filtros: todos visíveis
+        * Apenas regional: só polígonos daquela regional
+        * Regional + coordenador: apenas a interseção
+        * Apenas coordenador: polígonos desse coordenador em todas as regionais onde existir
+    """
+    vis = [True] * len(fig.data)
+
+    # Pontos (traces base) sempre True
+    for i in range(base_traces_count):
+        vis[i] = True
+
+    # Sem filtros: mostra todos os polígonos
+    if show_regional is None and show_coord is None:
+        for i in polygon_indices:
+            vis[i] = True
+        return vis
+
+    # Esconde todos os polígonos, depois liga os necessários
+    for i in polygon_indices:
+        vis[i] = False
+
+    if show_regional is not None and show_coord is None:
+        # todos os polígonos daquela regional
+        for i in regional_trace_indices.get(show_regional, []):
+            vis[i] = True
+        return vis
+
+    if show_regional is not None and show_coord is not None:
+        # interseção dos índices por regional e por coordenador
+        reg_idxs = set(regional_trace_indices.get(show_regional, []))
+        coord_idxs = set(coord_trace_indices.get(str(show_coord), []))
+        for i in (reg_idxs & coord_idxs):
+            vis[i] = True
+        return vis
+
+    if show_regional is None and show_coord is not None:
+        # apenas o coordenador, em todas as regionais onde há polígonos dele
+        for i in coord_trace_indices.get(str(show_coord), []):
+            vis[i] = True
+        return vis
+
+    return vis
+
+# Determina filtros a partir dos selects
+reg_filter = None if regional_sel == "Todos" else regional_sel
+coord_filter = None if coord_sel == "Todos" else coord_sel
+
+# Calcula e aplica visibilidade
+fig_visibility = visibility_mask_both(reg_filter, coord_filter)
+for i, v in enumerate(fig_visibility):
+    fig.data[i].visible = v
+
+# --------------------------------------------------
+# Layout final (com título refletindo a seleção)
+# --------------------------------------------------
+titulo = f"Regional: {regional_sel} | Coordenador: {coord_sel}"
+descricao = (
+    "Os pontos das cidades variam de cor conforme a região, e o tamanho aumenta quando a cidade "
+    "possui mais de uma loja. As áreas escuras representam regiões com a mesma coordenação."
+)
+
 fig.update_layout(
     mapbox_style="open-street-map",
     mapbox_center={"lat": -14.2350, "lon": -51.9253},
@@ -97,11 +202,22 @@ fig.update_layout(
         "below": "traces"
     }],
     margin={"r": 0, "t": 40, "l": 0, "b": 0},
-    title="Os pontos das cidades variam de cor conforme a região, e o tamanho aumenta quando a cidade "
-    "possui mais de uma loja. As áreas escuras representam regiões com a mesma coordenação."
+    title=f"{titulo}<br><sup>{descricao}</sup>"
 )
 
 # --------------------------------------------------
 # Renderizar no Streamlit
 # --------------------------------------------------
 st.plotly_chart(fig, use_container_width=True)
+
+# (Opcional) resumo da seleção
+if reg_filter is None and coord_filter is None:
+    df_sel = df_agg.copy()
+elif reg_filter is not None and coord_filter is None:
+    df_sel = df_agg[df_agg["REGIONAL"] == reg_filter]
+elif reg_filter is not None and coord_filter is not None:
+    df_sel = df_agg[(df_agg["REGIONAL"] == reg_filter) & (df_agg["COORDENADOR"] == coord_filter)]
+else:  # só coordenador
+    df_sel = df_agg[df_agg["COORDENADOR"] == coord_filter]
+
+st.caption(f"Total de lojas na seleção: {int(df_sel['QTD_LOJAS'].sum())}")
