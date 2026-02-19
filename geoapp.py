@@ -188,19 +188,33 @@ center, zoom = compute_bbox_center_zoom(df_points)
 
 titulo = f"Regional: {regional_sel} | Coordenador: {coord_sel}"
 
+# --------------------------------------------------
+# Layout final (somente Brasil visível)
+# --------------------------------------------------
 fig.update_layout(
-    mapbox_style="open-street-map",
-    mapbox_center=center,
-    mapbox_zoom=zoom,
-    mapbox_layers=[{
-        "source": geojson_br,
-        "type": "line",
-        "color": "black",
-        "line": {"width": 1.5},
-        "below": "traces"
-    }],
+    mapbox_style="white-bg",  # fundo branco, sem tiles de outros países
+    mapbox_center={"lat": -14.2350, "lon": -51.9253},
+    mapbox_zoom=3.5,
+    mapbox_layers=[
+        # 1) Preenchimento suave do BR (a partir do GeoJSON de estados)
+        {
+            "source": geojson_br,
+            "type": "fill",
+            "color": "#eef3f8",     # cinza-azulado bem claro
+            "opacity": 0.75,
+            "below": "traces"
+        },
+        # 2) Contorno dos estados do BR
+        {
+            "source": geojson_br,
+            "type": "line",
+            "color": "black",
+            "line": {"width": 1.2},
+            "below": "traces"
+        },
+    ],
     margin={"r": 0, "t": 40, "l": 0, "b": 0},
-    title=f"{titulo}<br>"
+    title=f"{titulo}<br><sup>{descricao}</sup>"
 )
 
 # --------------------------------------------------
