@@ -23,7 +23,7 @@ st.set_page_config(
     layout="wide"
 )
 
-st.title("🗺️ Mapa de Cidades por Regional e Coordenador")
+st.title("🗺️ Mapa de Lojas por Regional e Coordenador")
 
 # --------------------------------------------------
 # Cache de dados
@@ -187,10 +187,6 @@ for (regional, coord) in groups_to_draw:
 center, zoom = compute_bbox_center_zoom(df_points)
 
 titulo = f"Regional: {regional_sel} | Coordenador: {coord_sel}"
-descricao = (
-    "Mostrando somente a seleção. Os pontos variam de cor conforme a região; "
-    "o tamanho aumenta quando a cidade possui mais de uma loja."
-)
 
 fig.update_layout(
     mapbox_style="open-street-map",
@@ -214,4 +210,9 @@ st.plotly_chart(fig, use_container_width=True)
 
 # Resumo (apenas do que está visível)
 total_lojas = int(df_points['QTD_LOJAS'].sum()) if not df_points.empty else 0
-st.caption(f"Total de lojas na seleção: {total_lojas}")
+st.markdown(
+    f"<p style='font-size:22px; font-weight:bold; margin-top:15px;'>"
+    f"Total de lojas na seleção: {total_lojas}</p>",
+    unsafe_allow_html=True
+)
+
