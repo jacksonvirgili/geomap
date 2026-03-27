@@ -36,7 +36,7 @@ def load_geojson():
 @st.cache_data
 def load_data():
     # Espera colunas: ['REGIONAL', 'COORDENADOR', 'CIDADE', 'latitude', 'longitude', 'QTD_LOJAS']
-    return pd.read_csv("geodata.csv", sep:";")
+    return pd.read_csv("geodata.csv", sep=";")
 
 geojson_br = load_geojson()
 df_agg = load_data()
