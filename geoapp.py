@@ -22,6 +22,7 @@ def load_data():
     return pd.read_csv("geodata.csv")
 
 df_agg = load_data()
+st.write(df_agg.columns)
 
 # 🔥 Garantir que lat/long são numéricos
 df_agg['latitude'] = pd.to_numeric(df_agg['latitude'], errors='coerce')
