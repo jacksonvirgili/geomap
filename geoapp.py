@@ -62,6 +62,42 @@ def filter_points(df, coord_filter):
 def current_filter(coord_sel):
     return None if coord_sel == "Todos" else coord_sel
 
+# 🔽 COLE AQUI
+def compute_bbox_center_zoom(df_points):
+    if df_points.empty:
+        return {"lat": -14.2350, "lon": -51.9253}, 3.5
+
+    lat_min, lat_max = float(df_points["latitude"].min()), float(df_points["latitude"].max())
+    lon_min, lon_max = float(df_points["longitude"].min()), float(df_points["longitude"].max())
+
+    center = {
+        "lat": (lat_min + lat_max) / 2.0,
+        "lon": (lon_min + lon_max) / 2.0
+    }
+
+    lat_span = max(0.001, lat_max - lat_min)
+    lon_span = max(0.001, lon_max - lon_min)
+    span = max(lat_span, lon_span)
+
+    if span > 30:
+        zoom = 2.5
+    elif span > 15:
+        zoom = 3.0
+    elif span > 8:
+        zoom = 3.5
+    elif span > 4:
+        zoom = 4.0
+    elif span > 2:
+        zoom = 4.5
+    elif span > 1:
+        zoom = 5.0
+    elif span > 0.5:
+        zoom = 5.5
+    else:
+        zoom = 6.0
+
+    return center, zoom
+
 # --------------------------------------------------
 # Aplicar filtro
 # --------------------------------------------------
