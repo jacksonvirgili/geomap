@@ -23,103 +23,171 @@ def load_data():
 
 df_agg = load_data()
 
-# 🔥 Padronizar nomes de colunas (evita KeyError)
-df_agg.columns = df_agg.columns.str.strip().str.upper()
-
-# 🔥 Garantir lat/long numéricos
-df_agg['LATITUDE'] = pd.to_numeric(df_agg['LATITUDE'], errors='coerce')
-df_agg['LONGITUDE'] = pd.to_numeric(df_agg['LONGITUDE'], errors='coerce')
-df_agg = df_agg.dropna(subset=['LATITUDE', 'LONGITUDE'])
-
 # --------------------------------------------------
-# Filtro (apenas coordenador)
+# Filtros encadeados (sidebar)
 # --------------------------------------------------
 st.sidebar.header("Filtros")
 
-coords = sorted(df_agg["COORDENAÇÃO"].dropna().unique().tolist())
+regionais = sorted(df_agg["REGIONAL"].dropna().unique().tolist())
+regional_sel = st.sidebar.selectbox(
+    "Regional",
+    options=["Todos"] + regionais,
+    index=0
+)
+
+if regional_sel == "Todos":
+    coords_filtrados = sorted(
+        df_agg["COORDENADOR"].dropna().unique().tolist()
+    )
+else:
+    coords_filtrados = sorted(
+        df_agg.loc[
+            df_agg["REGIONAL"] == regional_sel,
+            "COORDENADOR"
+        ].dropna().unique().tolist()
+    )
 
 coord_sel = st.sidebar.selectbox(
     "Coordenador",
-    options=["Todos"] + coords,
+    options=["Todos"] + coords_filtrados,
     index=0
 )
 
 # --------------------------------------------------
 # Funções auxiliares
 # --------------------------------------------------
-def filter_points(df, coord_filter):
-    if coord_filter == "Todos":
+def current_filters(regional_sel, coord_sel):
+    """Converte seleção textual para filtros (None ou valor)."""
+    reg_filter = None if regional_sel == "Todos" else regional_sel
+    coord_filter = None if coord_sel == "Todos" else coord_sel
+    return reg_filter, coord_filter
+
+
+def filter_points(df, reg_filter, coord_filter):
+    """Retorna apenas os pontos que devem aparecer."""
+    if reg_filter is None and coord_filter is None:
         return df.copy()
-    return df[df["COORDENAÇÃO"] == coord_filter]
+
+    if reg_filter is not None and coord_filter is None:
+        return df[df["REGIONAL"] == reg_filter]
+
+    if reg_filter is not None and coord_filter is not None:
+        return df[
+            (df["REGIONAL"] == reg_filter) &
+            (df["COORDENADOR"] == coord_filter)
+        ]
+
+    # Apenas coordenador (todas regionais onde ele exista)
+    return df[df["COORDENADOR"] == coord_filter]
 
 
 def compute_bbox_center_zoom(df_points):
+    """Calcula center e zoom aproximados."""
     if df_points.empty:
         return {"lat": -14.2350, "lon": -51.9253}, 3.5
 
-    lat_min, lat_max = df_points["LATITUDE"].min(), df_points["LATITUDE"].max()
-    lon_min, lon_max = df_points["LONGITUDE"].min(), df_points["LONGITUDE"].max()
+    lat_min, lat_max = (
+        float(df_points["latitude"].min()),
+        float(df_points["latitude"].max())
+    )
+    lon_min, lon_max = (
+        float(df_points["longitude"].min()),
+        float(df_points["longitude"].max())
+    )
 
     center = {
         "lat": (lat_min + lat_max) / 2,
         "lon": (lon_min + lon_max) / 2
     }
 
-    span = max(lat_max - lat_min, lon_max - lon_min)
+    lat_span = max(0.001, lat_max - lat_min)
+    lon_span = max(0.001, lon_max - lon_min)
+    span = max(lat_span, lon_span)
 
-    if span > 30: zoom = 2.5
-    elif span > 15: zoom = 3.0
-    elif span > 8: zoom = 3.5
-    elif span > 4: zoom = 4.0
-    elif span > 2: zoom = 4.5
-    elif span > 1: zoom = 5.0
-    elif span > 0.5: zoom = 5.5
-    else: zoom = 6.0
+    if span > 30:
+        zoom = 2.5
+    elif span > 15:
+        zoom = 3.0
+    elif span > 8:
+        zoom = 3.5
+    elif span > 4:
+        zoom = 4.0
+    elif span > 2:
+        zoom = 4.5
+    elif span > 1:
+        zoom = 5.0
+    elif span > 0.5:
+        zoom = 5.5
+    else:
+        zoom = 6.0
 
     return center, zoom
 
-
-def neutral_fill(alpha=0.15):
-    return f"rgba(60,60,60,{alpha})"
-
 # --------------------------------------------------
-# Filtrar dados
+# Determina filtros e dados a exibir
 # --------------------------------------------------
-df_points = filter_points(df_agg, coord_sel)
+reg_filter, coord_filter = current_filters(regional_sel, coord_sel)
+df_points = filter_points(df_agg, reg_filter, coord_filter)
 
 # --------------------------------------------------
-# Criar mapa (pontos)
+# Grupos (REGIONAL, COORDENADOR) para polígonos
+# --------------------------------------------------
+if reg_filter is None and coord_filter is None:
+    groups_to_draw = sorted(
+        df_agg.groupby(["REGIONAL", "COORDENADOR"]).groups.keys()
+    )
+
+elif reg_filter is not None and coord_filter is None:
+    groups_to_draw = sorted(
+        df_agg[df_agg["REGIONAL"] == reg_filter]
+        .groupby(["REGIONAL", "COORDENADOR"])
+        .groups.keys()
+    )
+
+elif reg_filter is not None and coord_filter is not None:
+    groups_to_draw = [(reg_filter, coord_filter)]
+
+else:  # apenas coordenador
+    groups_to_draw = sorted(
+        df_agg[df_agg["COORDENADOR"] == coord_filter]
+        .groupby(["REGIONAL", "COORDENADOR"])
+        .groups.keys()
+    )
+
+# --------------------------------------------------
+# Scatter Mapbox (pontos filtrados)
 # --------------------------------------------------
 fig = px.scatter_mapbox(
     df_points,
-    lat="LATITUDE",
-    lon="LONGITUDE",
-    color="COORDENADOR",
+    lat="latitude",
+    lon="longitude",
+    color="REGIONAL",
     size="QTD_LOJAS",
     hover_name="CIDADE",
     hover_data={
         "COORDENADOR": True,
         "QTD_LOJAS": True,
-        "LATITUDE": False,
-        "LONGITUDE": False
+        "latitude": False,
+        "longitude": False
     },
     height=600
 )
 
 # --------------------------------------------------
-# Polígonos (Convex Hull por coordenador)
+# Polígonos (Convex Hull por grupo)
 # --------------------------------------------------
-coords_to_draw = (
-    df_points["COORDENAÇÃO"].dropna().unique()
-    if coord_sel == "Todos"
-    else [coord_sel]
-)
+def neutral_fill(alpha=0.15):
+    return f"rgba(60,60,60,{alpha})"
 
-for coord in coords_to_draw:
-    df_coord = df_agg[df_agg["COORDENAÇÃO"] == coord]
+
+for regional, coord in groups_to_draw:
+    df_coord = df_agg[
+        (df_agg["REGIONAL"] == regional) &
+        (df_agg["COORDENADOR"] == coord)
+    ]
 
     pts = (
-        df_coord[["LONGITUDE", "LATITUDE"]]
+        df_coord[["longitude", "latitude"]]
         .drop_duplicates()
         .to_numpy()
     )
@@ -140,26 +208,48 @@ for coord in coords_to_draw:
             fillcolor=neutral_fill(0.15),
             line=dict(color="rgba(0,0,0,0)"),
             showlegend=False,
+            hovertemplate=(
+                "<b>Coordenador:</b> %{text}<br>"
+                f"Regional: {regional}"
+                "<extra></extra>"
+            ),
             text=[str(coord)] * len(polygon_lon),
-            hovertemplate="<b>Coordenador:</b> %{text}<extra></extra>"
+            opacity=0.95
         )
     )
 
 # --------------------------------------------------
-# Layout
+# Layout final (Brasil apenas)
 # --------------------------------------------------
 center, zoom = compute_bbox_center_zoom(df_points)
+titulo = f"Regional: {regional_sel} | Coordenador: {coord_sel}"
 
 fig.update_layout(
-    mapbox_style="open-street-map",
-    mapbox_center=center,
-    mapbox_zoom=zoom,
+    mapbox_style="white-bg",
+    mapbox_center={"lat": -14.2350, "lon": -51.9253},
+    mapbox_zoom=3.5,
+    mapbox_layers=[
+        {
+            "source": geojson_br,
+            "type": "fill",
+            "color": "#eef3f8",
+            "opacity": 0.75,
+            "below": "traces"
+        },
+        {
+            "source": geojson_br,
+            "type": "line",
+            "color": "black",
+            "line": {"width": 1.2},
+            "below": "traces"
+        },
+    ],
     margin=dict(r=0, t=40, l=0, b=0),
-    title=f"Coordenador: {coord_sel}"
+    title=f"{titulo}<br>"
 )
 
 # --------------------------------------------------
-# Render
+# Render no Streamlit
 # --------------------------------------------------
 st.plotly_chart(fig, use_container_width=True)
 
@@ -171,7 +261,7 @@ total_lojas = int(df_points["QTD_LOJAS"].sum()) if not df_points.empty else 0
 st.markdown(
     f"""
     <p style="font-size:22px; font-weight:bold; margin-top:15px;">
-        Total de lojas: {total_lojas}
+        Total de lojas na seleção: {total_lojas}
     </p>
     """,
     unsafe_allow_html=True
