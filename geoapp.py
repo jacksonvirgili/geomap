@@ -43,9 +43,6 @@ df_agg = load_data()
 
 df_agg = load_data()
 
-st.write("Colunas do DataFrame:")
-st.write(df_agg.columns.tolist())
-
 # --------------------------------------------------
 # Filtros encadeados (sidebar)
 # --------------------------------------------------
