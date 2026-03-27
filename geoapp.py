@@ -44,105 +44,47 @@ df_agg = load_data()
 df_agg = load_data()
 
 # --------------------------------------------------
-# Filtros encadeados (sidebar)
+# Filtros (sidebar)
 # --------------------------------------------------
 st.sidebar.header("Filtros")
-regionais = sorted(df_agg['REGIONAL'].dropna().unique().tolist())
-regional_sel = st.sidebar.selectbox("Regional", options=["Todos"] + regionais, index=0)
 
-if regional_sel == "Todos":
-    coords_filtrados = sorted(df_agg['COORDENADOR'].dropna().unique().tolist())
-else:
-    coords_filtrados = sorted(
-        df_agg.loc[df_agg['REGIONAL'] == regional_sel, 'COORDENADOR'].dropna().unique().tolist()
-    )
-
-coord_sel = st.sidebar.selectbox("Coordenador", options=["Todos"] + coords_filtrados, index=0)
+coords = sorted(df_agg['COORDENADOR'].dropna().unique().tolist())
+coord_sel = st.sidebar.selectbox("Coordenador", options=["Todos"] + coords, index=0)
 
 # --------------------------------------------------
-# Funções auxiliares para seleção e zoom
+# Funções auxiliares
 # --------------------------------------------------
-def current_filters(regional_sel, coord_sel):
-    """Converte seleção textual para filtros (None ou valor)."""
-    reg_filter = None if regional_sel == "Todos" else regional_sel
-    coord_filter = None if coord_sel == "Todos" else coord_sel
-    return reg_filter, coord_filter
-
-def filter_points(df, reg_filter, coord_filter):
-    """Retorna apenas os pontos que devem aparecer."""
-    if reg_filter is None and coord_filter is None:
+def filter_points(df, coord_filter):
+    if coord_filter is None:
         return df.copy()
-    if reg_filter is not None and coord_filter is None:
-        return df[df["REGIONAL"] == reg_filter]
-    if reg_filter is not None and coord_filter is not None:
-        return df[(df["REGIONAL"] == reg_filter) & (df["COORDENADOR"] == coord_filter)]
-    # Apenas coordenador (todas regionais onde ele exista)
     return df[df["COORDENADOR"] == coord_filter]
 
-def compute_bbox_center_zoom(df_points):
-    """Calcula um center/zoom aproximado para focar nos pontos filtrados."""
-    if df_points.empty:
-        return {"lat": -14.2350, "lon": -51.9253}, 3.5
-
-    lat_min, lat_max = float(df_points["latitude"].min()), float(df_points["latitude"].max())
-    lon_min, lon_max = float(df_points["longitude"].min()), float(df_points["longitude"].max())
-    center = {"lat": (lat_min + lat_max) / 2.0, "lon": (lon_min + lon_max) / 2.0}
-
-    # Heurística simples de zoom baseado na extensão
-    lat_span = max(0.001, lat_max - lat_min)
-    lon_span = max(0.001, lon_max - lon_min)
-    span = max(lat_span, lon_span)
-    # Ajuste grosseiro: menor span => maior zoom
-    if span > 30:
-        zoom = 2.5
-    elif span > 15:
-        zoom = 3.0
-    elif span > 8:
-        zoom = 3.5
-    elif span > 4:
-        zoom = 4.0
-    elif span > 2:
-        zoom = 4.5
-    elif span > 1:
-        zoom = 5.0
-    elif span > 0.5:
-        zoom = 5.5
-    else:
-        zoom = 6.0
-    return center, zoom
+def current_filter(coord_sel):
+    return None if coord_sel == "Todos" else coord_sel
 
 # --------------------------------------------------
-# Determina filtros e dados a exibir
+# Aplicar filtro
 # --------------------------------------------------
-reg_filter, coord_filter = current_filters(regional_sel, coord_sel)
-df_points = filter_points(df_agg, reg_filter, coord_filter)
+coord_filter = current_filter(coord_sel)
+df_points = filter_points(df_agg, coord_filter)
 
-# Polígonos que devem ser desenhados (apenas os da seleção)
-# - Sem filtros: desenha todos (mantém comportamento anterior)
-# - Apenas regional: polígonos dessa regional
-# - Regional + coord: apenas esse par
-# - Apenas coord: polígonos desse coord em todas regionais onde exista
-if reg_filter is None and coord_filter is None:
-    groups_to_draw = sorted(df_agg.groupby(["REGIONAL", "COORDENADOR"]).groups.keys())
+# --------------------------------------------------
+# Grupos para polígonos (somente coordenador)
+# --------------------------------------------------
+if coord_filter is None:
+    groups_to_draw = sorted(df_agg["COORDENADOR"].dropna().unique())
 else:
-    if reg_filter is not None and coord_filter is None:
-        groups_to_draw = sorted(df_agg[df_agg["REGIONAL"] == reg_filter]
-                                .groupby(["REGIONAL", "COORDENADOR"]).groups.keys())
-    elif reg_filter is not None and coord_filter is not None:
-        groups_to_draw = [(reg_filter, coord_filter)]
-    else:  # apenas coordenador
-        groups_to_draw = sorted(df_agg[df_agg["COORDENADOR"] == coord_filter]
-                                .groupby(["REGIONAL", "COORDENADOR"]).groups.keys())
+    groups_to_draw = [coord_filter]
 
 # --------------------------------------------------
-# Scatter apenas com os pontos selecionados
+# Scatter (pontos das lojas)
 # --------------------------------------------------
 fig = px.scatter_mapbox(
     df_points,
     lat='latitude',
     lon='longitude',
-    color='REGIONAL',  # ainda colore por regional (mesmo quando só uma)
-    size='QTD_LOJAS',
+    color='COORDENADOR',  # agora cor por coordenador
+    size='QTD_LOJAS',     # tamanho proporcional
     hover_name='CIDADE',
     hover_data={
         'COORDENADOR': True,
@@ -154,18 +96,21 @@ fig = px.scatter_mapbox(
 )
 
 # --------------------------------------------------
-# Polígonos (apenas os da seleção)
+# Polígonos por coordenador
 # --------------------------------------------------
 def neutral_fill(alpha=0.15):
     return f"rgba(60,60,60,{alpha})"
 
-for (regional, coord) in groups_to_draw:
-    df_coord = df_agg[(df_agg["REGIONAL"] == regional) & (df_agg["COORDENADOR"] == coord)]
+for coord in groups_to_draw:
+    df_coord = df_agg[df_agg["COORDENADOR"] == coord]
+
     pts = df_coord[['longitude', 'latitude']].drop_duplicates().to_numpy()
+
     if len(pts) < 3:
         continue
 
     hull = ConvexHull(pts)
+
     polygon_lon = pts[hull.vertices, 0].tolist() + [pts[hull.vertices, 0][0]]
     polygon_lat = pts[hull.vertices, 1].tolist() + [pts[hull.vertices, 1][0]]
 
@@ -177,36 +122,28 @@ for (regional, coord) in groups_to_draw:
         fillcolor=neutral_fill(0.15),
         line=dict(color='rgba(0,0,0,0)'),
         showlegend=False,
-        hovertemplate="<b>Coordenador:</b> %{text}<br>Regional: " + str(regional) + "<extra></extra>",
+        hovertemplate="<b>Coordenador:</b> %{text}<extra></extra>",
         text=[str(coord)] * len(polygon_lon),
-        opacity=0.95,
-        visible=True
+        opacity=0.95
     ))
 
 # --------------------------------------------------
-# Layout final (com zoom para a seleção)
+# Zoom automático
 # --------------------------------------------------
 center, zoom = compute_bbox_center_zoom(df_points)
 
-titulo = f"Regional: {regional_sel} | Coordenador: {coord_sel}"
-
-# --------------------------------------------------
-# Layout final (somente Brasil visível)
-# --------------------------------------------------
 fig.update_layout(
-    mapbox_style="white-bg",  # fundo branco, sem tiles de outros países
-    mapbox_center={"lat": -14.2350, "lon": -51.9253},
-    mapbox_zoom=3.5,
+    mapbox_style="white-bg",
+    mapbox_center=center,
+    mapbox_zoom=zoom,
     mapbox_layers=[
-        # 1) Preenchimento suave do BR (a partir do GeoJSON de estados)
         {
             "source": geojson_br,
             "type": "fill",
-            "color": "#eef3f8",     # cinza-azulado bem claro
+            "color": "#eef3f8",
             "opacity": 0.75,
             "below": "traces"
         },
-        # 2) Contorno dos estados do BR
         {
             "source": geojson_br,
             "type": "line",
@@ -216,19 +153,21 @@ fig.update_layout(
         },
     ],
     margin={"r": 0, "t": 40, "l": 0, "b": 0},
-    title=f"{titulo}<br>"
+    title=f"Coordenador: {coord_sel}"
 )
 
 # --------------------------------------------------
-# Render no Streamlit
+# Render
 # --------------------------------------------------
 st.plotly_chart(fig, use_container_width=True)
 
-# Resumo (apenas do que está visível)
+# --------------------------------------------------
+# Resumo
+# --------------------------------------------------
 total_lojas = int(df_points['QTD_LOJAS'].sum()) if not df_points.empty else 0
+
 st.markdown(
-    f"<p style='font-size:22px; font-weight:bold; margin-top:15px;'>"
-    f"Total de lojas na seleção: {total_lojas}</p>",
+    f"<p style='font-size:22px; font-weight:bold;'>"
+    f"Total de lojas: {total_lojas}</p>",
     unsafe_allow_html=True
 )
-
