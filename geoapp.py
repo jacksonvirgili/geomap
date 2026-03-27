@@ -14,6 +14,30 @@ st.set_page_config(
 
 st.title("🗺️ Mapa de Lojas por Coordenador")
 
+
+import pandas as pd
+import plotly.express as px
+import streamlit as st
+
+df_test = pd.DataFrame({
+    "latitude": [-30.03, -29.68],
+    "longitude": [-51.23, -51.13],
+    "COORDENADOR": ["A", "A"],
+    "QTD_LOJAS": [10, 20],
+    "CIDADE": ["POA", "Canoas"]
+})
+
+fig = px.scatter_mapbox(
+    df_test,
+    lat="latitude",
+    lon="longitude",
+    size="QTD_LOJAS",
+    zoom=5
+)
+
+fig.update_layout(mapbox_style="carto-positron")
+
+st.plotly_chart(fig)
 # --------------------------------------------------
 # Carregar dados
 # --------------------------------------------------
