@@ -41,6 +41,10 @@ def load_data():
 geojson_br = load_geojson()
 df_agg = load_data()
 
+df_agg['QTD_LOJAS'] = pd.to_numeric(df_agg['QTD_LOJAS'], errors='coerce')
+df_agg['latitude'] = pd.to_numeric(df_agg['latitude'], errors='coerce')
+df_agg['longitude'] = pd.to_numeric(df_agg['longitude'], errors='coerce')
+
 # --------------------------------------------------
 # Filtros encadeados (sidebar)
 # --------------------------------------------------
