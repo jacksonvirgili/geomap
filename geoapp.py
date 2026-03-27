@@ -14,8 +14,6 @@ st.set_page_config(
 
 st.title("🗺️ Mapa de Lojas por Coordenador")
 
-fig.update_layout(mapbox_style="carto-positron")
-
 st.plotly_chart(fig)
 # --------------------------------------------------
 # Carregar dados
