@@ -14,7 +14,6 @@ st.set_page_config(
 
 st.title("🗺️ Mapa de Lojas por Coordenador")
 
-st.plotly_chart(fig)
 # --------------------------------------------------
 # Carregar dados
 # --------------------------------------------------
