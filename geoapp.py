@@ -36,7 +36,7 @@ df_agg = df_agg.dropna(subset=['LATITUDE', 'LONGITUDE'])
 # --------------------------------------------------
 st.sidebar.header("Filtros")
 
-coords = sorted(df_agg["COORDENADOR"].dropna().unique().tolist())
+coords = sorted(df_agg["COORDENAÇÃO"].dropna().unique().tolist())
 
 coord_sel = st.sidebar.selectbox(
     "Coordenador",
@@ -50,7 +50,7 @@ coord_sel = st.sidebar.selectbox(
 def filter_points(df, coord_filter):
     if coord_filter == "Todos":
         return df.copy()
-    return df[df["COORDENADOR"] == coord_filter]
+    return df[df["COORDENAÇÃO"] == coord_filter]
 
 
 def compute_bbox_center_zoom(df_points):
@@ -110,13 +110,13 @@ fig = px.scatter_mapbox(
 # Polígonos (Convex Hull por coordenador)
 # --------------------------------------------------
 coords_to_draw = (
-    df_points["COORDENADOR"].dropna().unique()
+    df_points["COORDENAÇÃO"].dropna().unique()
     if coord_sel == "Todos"
     else [coord_sel]
 )
 
 for coord in coords_to_draw:
-    df_coord = df_agg[df_agg["COORDENADOR"] == coord]
+    df_coord = df_agg[df_agg["COORDENAÇÃO"] == coord]
 
     pts = (
         df_coord[["LONGITUDE", "LATITUDE"]]
