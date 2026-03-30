@@ -125,9 +125,6 @@ df_points = filter_points(df_agg, reg_filter, coord_filter)
 df_casa = df_points[df_points["TIPO"] == "CASA"].copy()
 df_loja = df_points[df_points["TIPO"] == "LOJA"].copy()
 
-st.write(df_loja[["latitude", "longitude"]].head())
-st.write(df_loja.dtypes)
-
 # --------------------------------------------------
 # Criar cores por coordenação
 # --------------------------------------------------
@@ -212,7 +209,7 @@ for coord, df_coord in df_loja.groupby("COORDENAÇÃO"):
         mode="markers",
         marker=dict(
             size=13,
-            symbol="diamond",
+            symbol="circle",
             color=coord_to_color.get(coord, "black"),
             line=dict(width=1, color="black"),
             opacity=0.95
