@@ -11,7 +11,7 @@ st.title("🗺️ Mapa de Lojas por Coordenador")
 # =========================
 # 📥 CARREGAR DADOS
 # =========================
-df = pd.read_csv("geodata.csv")  # ajuste o nome aqui
+df = pd.read_csv("geodata.csv")
 
 df["latitude"] = pd.to_numeric(df["latitude"], errors="coerce")
 df["longitude"] = pd.to_numeric(df["longitude"], errors="coerce")
@@ -49,25 +49,43 @@ palette = (
     px.colors.qualitative.Set3
 )
 
-# ❌ remover cores muito escuras (especialmente preto)
+# remover cores escuras
 def is_dark(color):
-    # HEX
     if color.startswith("#"):
         color = color.lstrip("#")
         r = int(color[0:2], 16)
         g = int(color[2:4], 16)
         b = int(color[4:6], 16)
-
-    # RGB
     elif color.startswith("rgb"):
         values = color.replace("rgb(", "").replace(")", "").split(",")
         r, g, b = [int(v.strip()) for v in values]
-
     else:
-        return False  # fallback seguro
+        return False
 
     luminance = 0.299*r + 0.587*g + 0.114*b
     return luminance < 60
+
+palette = [c for c in palette if not is_dark(c)]
+
+# mapping de cores (CORRIGIDO - agora na ordem certa)
+coord_to_color = {
+    c: palette[i % len(palette)] for i, c in enumerate(sorted(coords_ativos))
+}
+
+# função RGBA (FALTAVA)
+def hex_to_rgba(color, alpha=0.2):
+    if color.startswith("#"):
+        color = color.lstrip("#")
+        r = int(color[0:2], 16)
+        g = int(color[2:4], 16)
+        b = int(color[4:6], 16)
+    elif color.startswith("rgb"):
+        values = color.replace("rgb(", "").replace(")", "").split(",")
+        r, g, b = [int(v.strip()) for v in values]
+    else:
+        return color  # fallback
+
+    return f"rgba({r},{g},{b},{alpha})"
 
 # =========================
 # 📊 TIPOS
@@ -95,7 +113,6 @@ for coord, df_coord in df_loja.groupby("COORDENAÇÃO"):
         lats = hull_points[:, 0].tolist()
         lons = hull_points[:, 1].tolist()
 
-        # fechar polígono
         lats.append(lats[0])
         lons.append(lons[0])
 
@@ -104,7 +121,7 @@ for coord, df_coord in df_loja.groupby("COORDENAÇÃO"):
             lon=lons,
             mode="lines",
             fill="toself",
-            fillcolor=hex_to_rgba(coord_to_color.get(coord, "#333333"), 0.2),  # ✅ ajuste aqui
+            fillcolor=hex_to_rgba(coord_to_color.get(coord, "#333333"), 0.2),
             line=dict(width=0),
             hoverinfo="skip",
             showlegend=False
