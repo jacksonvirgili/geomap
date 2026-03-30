@@ -49,17 +49,17 @@ palette = (
     px.colors.qualitative.Set3
 )
 
-coord_to_color = {
-    c: palette[i % len(palette)] for i, c in enumerate(sorted(coords_ativos))
-}
-
-# 🔥 FUNÇÃO RGBA (NOVO)
-def hex_to_rgba(hex_color, alpha=0.2):
+# ❌ remover cores muito escuras (especialmente preto)
+def is_dark(hex_color):
     hex_color = hex_color.lstrip("#")
     r = int(hex_color[0:2], 16)
     g = int(hex_color[2:4], 16)
     b = int(hex_color[4:6], 16)
-    return f"rgba({r},{g},{b},{alpha})"
+    # fórmula de luminância
+    luminance = 0.299*r + 0.587*g + 0.114*b
+    return luminance < 60  # threshold ajustável
+
+palette = [c for c in palette if not is_dark(c)]
 
 # =========================
 # 📊 TIPOS
