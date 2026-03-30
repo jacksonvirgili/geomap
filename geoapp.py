@@ -23,8 +23,6 @@ st.title("🗺️ Mapa de Lojas por Coordenador")
 def load_data():
     return pd.read_csv("geodata.csv")
 
-st.write(df_loja[["latitude", "longitude"]].head())
-st.write(df_loja.dtypes)
 
 @st.cache_data
 def load_geojson():
@@ -126,6 +124,9 @@ df_points = filter_points(df_agg, reg_filter, coord_filter)
 # --------------------------------------------------
 df_casa = df_points[df_points["TIPO"] == "CASA"].copy()
 df_loja = df_points[df_points["TIPO"] == "LOJA"].copy()
+
+st.write(df_loja[["latitude", "longitude"]].head())
+st.write(df_loja.dtypes)
 
 # --------------------------------------------------
 # Criar cores por coordenação
