@@ -9,17 +9,10 @@ st.set_page_config(layout="wide")
 st.title("🗺️ Mapa de Lojas por Coordenador")
 
 # =========================
-# 📥 UPLOAD (corrige erro anterior)
+# 📥 CARREGAR DADOS
 # =========================
-uploaded_file = st.file_uploader("📥 Envie seu CSV", type=["csv"])
+df = pd.read_csv("sua_base.csv")  # ajuste o nome aqui
 
-if uploaded_file is not None:
-    df = pd.read_csv(uploaded_file)
-else:
-    st.warning("Envie um arquivo CSV para continuar")
-    st.stop()
-
-# garantir tipos corretos
 df["latitude"] = pd.to_numeric(df["latitude"], errors="coerce")
 df["longitude"] = pd.to_numeric(df["longitude"], errors="coerce")
 df = df.dropna(subset=["latitude", "longitude"])
@@ -97,8 +90,7 @@ for coord, df_coord in df_loja.groupby("COORDENAÇÃO"):
             fill="toself",
             fillcolor=coord_to_color.get(coord, "#333333"),
             line=dict(width=0),
-            opacity=0.2,  # 🔥 translucidez
-            name=f"Área {coord}",
+            opacity=0.2,
             hoverinfo="skip",
             showlegend=False
         ))
@@ -124,7 +116,7 @@ for coord, df_coord in df_loja.groupby("COORDENAÇÃO"):
         name=coord
     ))
 
-# ⚫ CASA (com coord no hover)
+# ⚫ CASA (AGORA COM COORDENAÇÃO NO HOVER)
 if not df_casa.empty:
     fig.add_trace(go.Scattermapbox(
         lat=df_casa["latitude"],
@@ -151,7 +143,8 @@ fig.update_layout(
         "lat": df_points["latitude"].mean(),
         "lon": df_points["longitude"].mean()
     },
-    margin={"r":0,"t":40,"l":0,"b":0}
+    margin={"r":0,"t":40,"l":0,"b":0},
+    title="Distribuição de Lojas por Coordenador"
 )
 
 st.plotly_chart(fig, use_container_width=True)
