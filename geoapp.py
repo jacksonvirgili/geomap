@@ -124,6 +124,18 @@ df_points = filter_points(df_agg, reg_filter, coord_filter)
 df_casa = df_points[df_points["TIPO"] == "CASA"].copy()
 df_loja = df_points[df_points["TIPO"] == "LOJA"].copy()
 
+coords = df_points["COORDENAÇÃO"].dropna().unique().tolist()
+
+palette = (
+    px.colors.qualitative.Dark24 +
+    px.colors.qualitative.Alphabet +
+    px.colors.qualitative.Set3
+)
+
+coord_to_color = {
+    c: palette[i % len(palette)] for i, c in enumerate(sorted(coords))
+}
+
 # --------------------------------------------------
 # Criar mapa base (CASA)
 # --------------------------------------------------
