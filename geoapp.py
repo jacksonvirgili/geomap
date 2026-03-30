@@ -10,7 +10,7 @@ st.title("🗺️ Mapa de Lojas por Coordenador")
 # =========================
 # 📥 CARREGAR DADOS
 # =========================
-df = pd.read_csv("sua_base.csv")  # ajuste o nome aqui
+df = pd.read_csv("geodata.csv")  # ajuste o nome aqui
 
 # garantir tipos corretos
 df["latitude"] = pd.to_numeric(df["latitude"], errors="coerce")
