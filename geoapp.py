@@ -143,7 +143,7 @@ fig = px.scatter_mapbox(
 
 fig.update_traces(
     marker=dict(
-        size=10,
+        size=15,
         symbol="circle",
         color="black"
     ),
@@ -154,21 +154,24 @@ fig.update_traces(
 # --------------------------------------------------
 # Adicionar LOJAS
 # --------------------------------------------------
-fig.add_trace(go.Scattermapbox(
-    lat=df_loja["latitude"],
-    lon=df_loja["longitude"],
-    mode="markers",
-    marker=dict(
-        size=11,
-        symbol="diamond",
-        color="black"
-    ),
-    hovertext=df_loja["CIDADE"],
-    text=df_loja["COORDENAÇÃO"],
-    hovertemplate="<b>Cidade:</b> %{hovertext}<br><b>Coordenação:</b> %{text}<extra></extra>",
-    name="LOJA",
-    showlegend=True
-))
+for coord, df_coord in df_loja.groupby("COORDENAÇÃO"):
+    
+    fig.add_trace(go.Scattermapbox(
+        lat=df_coord["latitude"],
+        lon=df_coord["longitude"],
+        mode="markers",
+        marker=dict(
+            size=12,
+            symbol="diamond",
+            color=coord_to_color.get(coord, "black")  # 👈 cor dinâmica
+            opacity=0.9
+        ),
+        hovertext=df_coord["CIDADE"],
+        text=df_coord["COORDENAÇÃO"],
+        hovertemplate="<b>Cidade:</b> %{hovertext}<br><b>Coordenação:</b> %{text}<extra></extra>",
+        name=f"LOJA - {coord}",  # opcional (pode poluir legenda)
+        showlegend=False  # 👈 recomendo deixar False
+    ))
 
 # --------------------------------------------------
 # Polígonos por coordenação
