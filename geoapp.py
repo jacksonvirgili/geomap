@@ -42,10 +42,10 @@ regional_sel = st.sidebar.selectbox(
 )
 
 if regional_sel == "Todos":
-    coords_filtrados = sorted(df_agg["COORDENADOR"].dropna().unique())
+    coords_filtrados = sorted(df_agg["COORDENAÇÃO"].dropna().unique())
 else:
     coords_filtrados = sorted(
-        df_agg[df_agg["REGIONAL"] == regional_sel]["COORDENADOR"].dropna().unique()
+        df_agg[df_agg["REGIONAL"] == regional_sel]["COORDENAÇÃO"].dropna().unique()
     )
 
 coord_sel = st.sidebar.selectbox(
@@ -67,8 +67,8 @@ def filter_points(df, reg, coord):
     if reg and not coord:
         return df[df["REGIONAL"] == reg]
     if reg and coord:
-        return df[(df["REGIONAL"] == reg) & (df["COORDENADOR"] == coord)]
-    return df[df["COORDENADOR"] == coord]
+        return df[(df["REGIONAL"] == reg) & (df["COORDENAÇÃO"] == coord)]
+    return df[df["COORDENAÇÃO"] == coord]
 
 def compute_bbox_center_zoom(df):
     if df.empty:
@@ -118,8 +118,8 @@ fig = px.scatter_mapbox(
     size="QTD_LOJAS",
     hover_name="CIDADE",
     hover_data={
-        "COORDENADOR": True,
-        "QTD_LOJAS": True,
+        "COORDENAÇÃO": True,
+        "TIPO": True,
         "latitude": False,
         "longitude": False
     },
@@ -129,7 +129,7 @@ fig = px.scatter_mapbox(
 # --------------------------------------------------
 # Polígonos (Convex Hull)
 # --------------------------------------------------
-groups = df_points.groupby(["REGIONAL", "COORDENADOR"])
+groups = df_points.groupby(["REGIONAL", "COORDENAÇÃO"])
 
 for (regional, coord), df_group in groups:
     pts = df_group[["longitude", "latitude"]].drop_duplicates().to_numpy()
@@ -189,7 +189,7 @@ total_lojas = int(df_points["QTD_LOJAS"].sum()) if not df_points.empty else 0
 st.markdown(
     f"""
     <p style="font-size:22px; font-weight:bold;">
-        Total de lojas na seleção: {total_lojas}
+        Total de lojas na seleção: {TIPO}
     </p>
     """,
     unsafe_allow_html=True
