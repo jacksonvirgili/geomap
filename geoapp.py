@@ -124,6 +124,9 @@ df_points = filter_points(df_agg, reg_filter, coord_filter)
 df_casa = df_points[df_points["TIPO"] == "CASA"].copy()
 df_loja = df_points[df_points["TIPO"] == "LOJA"].copy()
 
+# --------------------------------------------------
+# Criar cores por coordenação
+# --------------------------------------------------
 coords = df_points["COORDENAÇÃO"].dropna().unique().tolist()
 
 palette = (
@@ -157,49 +160,16 @@ fig.update_traces(
     marker=dict(
         size=15,
         symbol="circle",
-        color="black"
+        color="black",
+        opacity=0.85
     ),
     name="CASA",
     showlegend=True
 )
 
 # --------------------------------------------------
-# Adicionar LOJAS
-# --------------------------------------------------
-df_loja["cor"] = df_loja["COORDENAÇÃO"].map(coord_to_color)
-
-fig.add_trace(go.Scattermapbox(
-    lat=df_loja["latitude"],
-    lon=df_loja["longitude"],
-    mode="markers",
-    marker=dict(
-        size=12,
-        symbol="diamond",
-        color=df_loja["cor"],  # 👈 cor por coordenação
-        opacity=0.9
-    ),
-    hovertext=df_loja["CIDADE"],
-    text=df_loja["COORDENAÇÃO"],
-    hovertemplate="<b>Cidade:</b> %{hovertext}<br><b>Coordenação:</b> %{text}<extra></extra>",
-    name="LOJA",
-    showlegend=True
-))
-
-# --------------------------------------------------
 # Polígonos por coordenação
 # --------------------------------------------------
-coords = df_points["COORDENAÇÃO"].dropna().unique().tolist()
-
-palette = (
-    px.colors.qualitative.Dark24 +
-    px.colors.qualitative.Alphabet +
-    px.colors.qualitative.Set3
-)
-
-coord_to_color = {
-    c: palette[i % len(palette)] for i, c in enumerate(sorted(coords))
-}
-
 for coord, df_coord in df_points.groupby("COORDENAÇÃO"):
     pts = df_coord[["longitude", "latitude"]].dropna().to_numpy()
     pts = np.unique(pts, axis=0)
@@ -226,6 +196,29 @@ for coord, df_coord in df_points.groupby("COORDENAÇÃO"):
         text=[coord] * len(poly_lon),
         showlegend=False
     ))
+
+# --------------------------------------------------
+# LOJAS (AGORA POR ÚLTIMO ✅)
+# --------------------------------------------------
+df_loja["cor"] = df_loja["COORDENAÇÃO"].map(coord_to_color)
+
+fig.add_trace(go.Scattermapbox(
+    lat=df_loja["latitude"],
+    lon=df_loja["longitude"],
+    mode="markers",
+    marker=dict(
+        size=13,
+        symbol="diamond",
+        color=df_loja["cor"],
+        line=dict(width=1, color="black"),
+        opacity=0.95
+    ),
+    hovertext=df_loja["CIDADE"],
+    text=df_loja["COORDENAÇÃO"],
+    hovertemplate="<b>Cidade:</b> %{hovertext}<br><b>Coordenação:</b> %{text}<extra></extra>",
+    name="LOJA",
+    showlegend=True
+))
 
 # --------------------------------------------------
 # Layout com zoom dinâmico
