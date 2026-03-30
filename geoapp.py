@@ -23,7 +23,6 @@ st.title("🗺️ Mapa de Lojas por Coordenador")
 def load_data():
     return pd.read_csv("geodata.csv")
 
-
 @st.cache_data
 def load_geojson():
     url = "https://raw.githubusercontent.com/codeforamerica/click_that_hood/master/public/data/brazil-states.geojson"
@@ -41,6 +40,28 @@ def load_geojson():
 
 df_agg = load_data()
 geojson_br = load_geojson()
+
+# --------------------------------------------------
+# Limpeza de dados GLOBAL
+# --------------------------------------------------
+df_agg["COORDENAÇÃO"] = df_agg["COORDENAÇÃO"].astype(str).str.strip()
+
+df_agg["latitude"] = (
+    df_agg["latitude"]
+    .astype(str)
+    .str.replace(",", ".")
+)
+
+df_agg["longitude"] = (
+    df_agg["longitude"]
+    .astype(str)
+    .str.replace(",", ".")
+)
+
+df_agg["latitude"] = pd.to_numeric(df_agg["latitude"], errors="coerce")
+df_agg["longitude"] = pd.to_numeric(df_agg["longitude"], errors="coerce")
+
+df_agg = df_agg.dropna(subset=["latitude", "longitude"])
 
 # --------------------------------------------------
 # Filtros (sidebar)
@@ -96,20 +117,13 @@ def compute_bbox_center_zoom(df):
 
     span = max(lat_max - lat_min, lon_max - lon_min)
 
-    if span > 30:
-        zoom = 2.5
-    elif span > 15:
-        zoom = 3
-    elif span > 8:
-        zoom = 3.5
-    elif span > 4:
-        zoom = 4
-    elif span > 2:
-        zoom = 4.5
-    elif span > 1:
-        zoom = 5
-    else:
-        zoom = 6
+    if span > 30: zoom = 2.5
+    elif span > 15: zoom = 3
+    elif span > 8: zoom = 3.5
+    elif span > 4: zoom = 4
+    elif span > 2: zoom = 4.5
+    elif span > 1: zoom = 5
+    else: zoom = 6
 
     return center, zoom
 
@@ -159,20 +173,23 @@ fig = px.scatter_mapbox(
 
 fig.update_traces(
     marker=dict(
-        size=15,
-        symbol="circle",
+        size=14,
         color="black",
-        opacity=0.85
+        opacity=0.7
     ),
     name="CASA",
     showlegend=True
 )
 
 # --------------------------------------------------
-# Polígonos por coordenação
+# Polígonos
 # --------------------------------------------------
 for coord, df_coord in df_points.groupby("COORDENAÇÃO"):
-    pts = df_coord[["longitude", "latitude"]].dropna().to_numpy()
+
+    if df_coord.empty:
+        continue
+
+    pts = df_coord[["longitude", "latitude"]].to_numpy()
     pts = np.unique(pts, axis=0)
 
     if len(pts) < 3:
@@ -183,46 +200,48 @@ for coord, df_coord in df_points.groupby("COORDENAÇÃO"):
     poly_lon = pts[hull.vertices, 0].tolist() + [pts[hull.vertices, 0][0]]
     poly_lat = pts[hull.vertices, 1].tolist() + [pts[hull.vertices, 1][0]]
 
+    color = coord_to_color.get(coord) or "#555"
+
     fig.add_trace(go.Scattermapbox(
         lon=poly_lon,
         lat=poly_lat,
         mode="lines",
         fill="toself",
-        fillcolor="rgba(80,80,80,0.10)",
-        line=dict(
-            color=coord_to_color.get(coord, "#555"),
-            width=1.6
-        ),
+        fillcolor="rgba(80,80,80,0.08)",
+        line=dict(color=color, width=1.6),
         hovertemplate="<b>Coordenação:</b> %{text}<extra></extra>",
         text=[coord] * len(poly_lon),
         showlegend=False
     ))
 
 # --------------------------------------------------
-# LOJAS (AGORA POR ÚLTIMO ✅)
+# LOJAS (camada superior)
 # --------------------------------------------------
 for coord, df_coord in df_loja.groupby("COORDENAÇÃO"):
-    
+
+    if df_coord.empty:
+        continue
+
+    color = coord_to_color.get(coord) or "#000000"
+
     fig.add_trace(go.Scattermapbox(
         lat=df_coord["latitude"],
         lon=df_coord["longitude"],
         mode="markers",
         marker=dict(
-            size=13,
-            symbol="circle",
-            color=coord_to_color.get(coord, "black"),
-            line=dict(width=1, color="black"),
+            size=12,
+            color=color,
             opacity=0.95
         ),
         hovertext=df_coord["CIDADE"],
         text=df_coord["COORDENAÇÃO"],
         hovertemplate="<b>Cidade:</b> %{hovertext}<br><b>Coordenação:</b> %{text}<extra></extra>",
         name="LOJA",
-        showlegend=False  # evita poluição
+        showlegend=False
     ))
 
 # --------------------------------------------------
-# Layout com zoom dinâmico
+# Layout
 # --------------------------------------------------
 center, zoom = compute_bbox_center_zoom(df_points)
 
@@ -250,14 +269,10 @@ st.plotly_chart(fig, use_container_width=True)
 # --------------------------------------------------
 # Resumo
 # --------------------------------------------------
-total = len(df_points)
-total_casa = len(df_casa)
-total_loja = len(df_loja)
-
 st.markdown(
     f"""
     <p style="font-size:20px; font-weight:bold;">
-        Total: {total} | CASA: {total_casa} | LOJA: {total_loja}
+        Total: {len(df_points)} | CASA: {len(df_casa)} | LOJA: {len(df_loja)}
     </p>
     """,
     unsafe_allow_html=True
