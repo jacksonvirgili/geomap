@@ -53,6 +53,14 @@ coord_to_color = {
     c: palette[i % len(palette)] for i, c in enumerate(sorted(coords_ativos))
 }
 
+# 🔥 FUNÇÃO RGBA (NOVO)
+def hex_to_rgba(hex_color, alpha=0.2):
+    hex_color = hex_color.lstrip("#")
+    r = int(hex_color[0:2], 16)
+    g = int(hex_color[2:4], 16)
+    b = int(hex_color[4:6], 16)
+    return f"rgba({r},{g},{b},{alpha})"
+
 # =========================
 # 📊 TIPOS
 # =========================
@@ -88,9 +96,8 @@ for coord, df_coord in df_loja.groupby("COORDENAÇÃO"):
             lon=lons,
             mode="lines",
             fill="toself",
-            fillcolor=coord_to_color.get(coord, "#333333"),
+            fillcolor=hex_to_rgba(coord_to_color.get(coord, "#333333"), 0.2),  # ✅ ajuste aqui
             line=dict(width=0),
-            opacity=0.2,
             hoverinfo="skip",
             showlegend=False
         ))
@@ -116,7 +123,7 @@ for coord, df_coord in df_loja.groupby("COORDENAÇÃO"):
         name=coord
     ))
 
-# ⚫ CASA (AGORA COM COORDENAÇÃO NO HOVER)
+# ⚫ CASA
 if not df_casa.empty:
     fig.add_trace(go.Scattermapbox(
         lat=df_casa["latitude"],
