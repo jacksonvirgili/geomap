@@ -2,33 +2,24 @@ import streamlit as st
 import pandas as pd
 import plotly.graph_objects as go
 import plotly.express as px
-from scipy.spatial import ConvexHull
 
 st.set_page_config(layout="wide")
 
 st.title("🗺️ Mapa de Lojas por Coordenador")
 
 # =========================
-# 📥 UPLOAD DO CSV
+# 📥 CARREGAR DADOS
 # =========================
-uploaded_file = st.file_uploader("Suba seu CSV", type=["csv"])
+df = pd.read_csv("sua_base.csv")  # ajuste o nome aqui
 
-if uploaded_file is not None:
-    df = pd.read_csv(uploaded_file)
-else:
-    st.warning("Faça upload de um arquivo CSV para continuar.")
-    st.stop()
-
-# =========================
-# 🧹 TRATAMENTO DE DADOS
-# =========================
+# garantir tipos corretos
 df["latitude"] = pd.to_numeric(df["latitude"], errors="coerce")
 df["longitude"] = pd.to_numeric(df["longitude"], errors="coerce")
 
 df = df.dropna(subset=["latitude", "longitude"])
 
 # =========================
-# 🎛️ FILTROS
+# 🎛️ FILTRO INTELIGENTE
 # =========================
 st.sidebar.header("Filtros")
 
@@ -40,7 +31,7 @@ coords_sel = st.sidebar.multiselect(
     default=["Todos"]
 )
 
-# evitar conflito
+# evitar conflito "Todos" + outros
 if "Todos" in coords_sel and len(coords_sel) > 1:
     coords_sel = ["Todos"]
 
@@ -53,7 +44,7 @@ else:
     coords_ativos = coords_sel
 
 # =========================
-# 🎨 CORES
+# 🎨 CORES POR COORDENAÇÃO
 # =========================
 palette = (
     px.colors.qualitative.Dark24 +
@@ -66,55 +57,45 @@ coord_to_color = {
 }
 
 # =========================
-# 📊 SEPARAÇÃO
+# 📊 SEPARAR TIPOS
 # =========================
 df_loja = df_points[df_points["TIPO"] != "CASA"]
 df_casa = df_points[df_points["TIPO"] == "CASA"]
 
 # =========================
-# 🗺️ MAPA
+# 🗺️ CRIAR MAPA
 # =========================
 fig = go.Figure()
 
-# =========================
-# 🔷 POLÍGONOS
-# =========================
+# 🔷 POLÍGONOS POR COORDENAÇÃO
 for coord, df_coord in df_loja.groupby("COORDENAÇÃO"):
 
     if len(df_coord) < 3:
-        continue
+        continue  # precisa de pelo menos 3 pontos
 
-    points = df_coord[["longitude", "latitude"]].values
+    df_coord = df_coord.sort_values(by=["latitude", "longitude"])
 
-    try:
-        hull = ConvexHull(points)
-        hull_points = points[hull.vertices]
+    lats = df_coord["latitude"].tolist()
+    lons = df_coord["longitude"].tolist()
 
-        hull_points = list(hull_points) + [hull_points[0]]
+    # fechar polígono
+    lats.append(lats[0])
+    lons.append(lons[0])
 
-        lons = [p[0] for p in hull_points]
-        lats = [p[1] for p in hull_points]
+    fig.add_trace(go.Scattermapbox(
+        lat=lats,
+        lon=lons,
+        mode="lines",
+        fill="toself",
+        fillcolor=coord_to_color.get(coord, "#333333"),
+        line=dict(width=2, color=coord_to_color.get(coord, "#333333")),
+        opacity=0.2,
+        name=f"Área {coord}",
+        showlegend=False,
+        hoverinfo="skip"
+    ))
 
-        fig.add_trace(go.Scattermapbox(
-            lon=lons,
-            lat=lats,
-            mode="lines",
-            fill="toself",
-            fillcolor=coord_to_color.get(coord, "#000000"),
-            line=dict(width=2),
-            opacity=0.2,
-            name=f"Área {coord}",
-            hoverinfo="text",
-            text=[f"Área de atuação: {coord}"] * len(lats),
-            showlegend=True
-        ))
-
-    except:
-        continue
-
-# =========================
-# 🔵 LOJAS
-# =========================
+# 🔵 LOJAS (por coordenação)
 for coord, df_coord in df_loja.groupby("COORDENAÇÃO"):
 
     if df_coord.empty:
@@ -133,12 +114,10 @@ for coord, df_coord in df_loja.groupby("COORDENAÇÃO"):
         text=df_coord["COORDENAÇÃO"],
         hovertemplate="<b>Cidade:</b> %{hovertext}<br><b>Coordenação:</b> %{text}<extra></extra>",
         name=coord,
-        showlegend=False
+        showlegend=True
     ))
 
-# =========================
-# ⚫ CASA
-# =========================
+# ⚫ CASAS (preto) + coord no hover
 if not df_casa.empty:
     fig.add_trace(go.Scattermapbox(
         lat=df_casa["latitude"],
@@ -147,16 +126,17 @@ if not df_casa.empty:
         marker=dict(
             size=14,
             color="black",
-            opacity=0.8
+            opacity=0.7
         ),
-        hovertext=df_casa["CIDADE"] + " - " + df_casa["COORDENAÇÃO"],
-        hovertemplate="<b>CASA</b><br>%{hovertext}<extra></extra>",
+        hovertext=df_casa["CIDADE"],
+        text=df_casa["COORDENAÇÃO"],
+        hovertemplate="<b>CASA</b><br>Cidade: %{hovertext}<br>Coordenação: %{text}<extra></extra>",
         name="CASA",
         showlegend=True
     ))
 
 # =========================
-# ⚙️ LAYOUT
+# ⚙️ CONFIG MAPA
 # =========================
 fig.update_layout(
     mapbox_style="open-street-map",
