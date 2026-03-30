@@ -68,23 +68,10 @@ df_agg = df_agg.dropna(subset=["latitude", "longitude"])
 # --------------------------------------------------
 st.sidebar.header("Filtros")
 
-regionais = sorted(df_agg["REGIONAL"].dropna().unique())
-regional_sel = st.sidebar.selectbox(
-    "Regional",
-    options=["Todos"] + list(regionais)
-)
+coords = sorted(df_agg["COORDENAÇÃO"].dropna().unique())
 
-if regional_sel == "Todos":
-    coords_filtrados = sorted(df_agg["COORDENAÇÃO"].dropna().unique())
-else:
-    coords_filtrados = sorted(
-        df_agg[df_agg["REGIONAL"] == regional_sel]["COORDENAÇÃO"].dropna().unique()
-    )
-
-coord_sel = st.sidebar.selectbox(
-    "Coordenador",
-    options=["Todos"] + list(coords_filtrados)
-)
+coord_1 = st.sidebar.selectbox("Coordenador 1", coords)
+coord_2 = st.sidebar.selectbox("Coordenador 2", coords, index=1 if len(coords) > 1 else 0)
 
 # --------------------------------------------------
 # Funções auxiliares
@@ -130,8 +117,9 @@ def compute_bbox_center_zoom(df):
 # --------------------------------------------------
 # Aplicar filtros
 # --------------------------------------------------
-reg_filter, coord_filter = current_filters(regional_sel, coord_sel)
-df_points = filter_points(df_agg, reg_filter, coord_filter)
+df_points = df_agg[
+    df_agg["COORDENAÇÃO"].isin([coord_1, coord_2])
+]
 
 # --------------------------------------------------
 # Separar CASA e LOJA
@@ -151,7 +139,8 @@ palette = (
 )
 
 coord_to_color = {
-    c: palette[i % len(palette)] for i, c in enumerate(sorted(coords))
+    coord_1: "#1f77b4",  # azul
+    coord_2: "#d62728"   # vermelho
 }
 
 # --------------------------------------------------
