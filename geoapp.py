@@ -24,20 +24,12 @@ def load_data():
     return pd.read_csv("geodata.csv")
 
 @st.cache_data
-def load_geojson_rs():
+def load_geojson():
     url = "https://raw.githubusercontent.com/codeforamerica/click_that_hood/master/public/data/brazil-states.geojson"
-    geojson = requests.get(url).json()
-    
-    # Filtrar apenas Rio Grande do Sul
-    geojson_rs = {
-        "type": "FeatureCollection",
-        "features": [
-            f for f in geojson["features"]
-            if f["properties"]["name"] == "Rio Grande do Sul"
-        ]
-    }
-    
-    return geojson_rs
+    return requests.get(url).json()
+
+df_agg = load_data()
+geojson_br = load_geojson()
 
 # --------------------------------------------------
 # Filtros (sidebar)
