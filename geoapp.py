@@ -1,137 +1,51 @@
 import streamlit as st
 import pandas as pd
-import plotly.express as px
 import plotly.graph_objects as go
-from scipy.spatial import ConvexHull
-import numpy as np
-import requests
+import plotly.express as px
 
-# --------------------------------------------------
-# Configuração da página
-# --------------------------------------------------
-st.set_page_config(
-    page_title="Mapa de Lojas por Coordenador",
-    layout="wide"
-)
+st.set_page_config(layout="wide")
 
 st.title("🗺️ Mapa de Lojas por Coordenador")
 
-# --------------------------------------------------
-# Carregar dados
-# --------------------------------------------------
-@st.cache_data
-def load_data():
-    return pd.read_csv("geodata.csv")
+# =========================
+# 📥 CARREGAR DADOS
+# =========================
+df = pd.read_csv("sua_base.csv")  # ajuste o nome aqui
 
-@st.cache_data
-def load_geojson():
-    url = "https://raw.githubusercontent.com/codeforamerica/click_that_hood/master/public/data/brazil-states.geojson"
-    geojson = requests.get(url).json()
-    
-    geojson_rs = {
-        "type": "FeatureCollection",
-        "features": [
-            f for f in geojson["features"]
-            if f["properties"]["name"] == "Rio Grande do Sul"
-        ]
-    }
-    
-    return geojson_rs
+# garantir tipos corretos
+df["latitude"] = pd.to_numeric(df["latitude"], errors="coerce")
+df["longitude"] = pd.to_numeric(df["longitude"], errors="coerce")
 
-df_agg = load_data()
-geojson_br = load_geojson()
+df = df.dropna(subset=["latitude", "longitude"])
 
-# --------------------------------------------------
-# Limpeza de dados GLOBAL
-# --------------------------------------------------
-df_agg["COORDENAÇÃO"] = df_agg["COORDENAÇÃO"].astype(str).str.strip()
-
-df_agg["latitude"] = (
-    df_agg["latitude"]
-    .astype(str)
-    .str.replace(",", ".")
-)
-
-df_agg["longitude"] = (
-    df_agg["longitude"]
-    .astype(str)
-    .str.replace(",", ".")
-)
-
-df_agg["latitude"] = pd.to_numeric(df_agg["latitude"], errors="coerce")
-df_agg["longitude"] = pd.to_numeric(df_agg["longitude"], errors="coerce")
-
-df_agg = df_agg.dropna(subset=["latitude", "longitude"])
-
-# --------------------------------------------------
-# Filtros (sidebar)
-# --------------------------------------------------
+# =========================
+# 🎛️ FILTRO INTELIGENTE
+# =========================
 st.sidebar.header("Filtros")
 
-coords = sorted(df_agg["COORDENAÇÃO"].dropna().unique())
+coords = sorted(df["COORDENAÇÃO"].dropna().unique())
 
-coord_1 = st.sidebar.selectbox("Coordenador 1", coords)
-coord_2 = st.sidebar.selectbox("Coordenador 2", coords, index=1 if len(coords) > 1 else 0)
+coords_sel = st.sidebar.multiselect(
+    "Coordenadores",
+    options=["Todos"] + coords,
+    default=["Todos"]
+)
 
-# --------------------------------------------------
-# Funções auxiliares
-# --------------------------------------------------
-def current_filters(regional_sel, coord_sel):
-    reg = None if regional_sel == "Todos" else regional_sel
-    coord = None if coord_sel == "Todos" else coord_sel
-    return reg, coord
+# evitar conflito "Todos" + outros
+if "Todos" in coords_sel and len(coords_sel) > 1:
+    coords_sel = ["Todos"]
 
-def filter_points(df, reg, coord):
-    if reg is None and coord is None:
-        return df.copy()
-    if reg and not coord:
-        return df[df["REGIONAL"] == reg]
-    if reg and coord:
-        return df[(df["REGIONAL"] == reg) & (df["COORDENAÇÃO"] == coord)]
-    return df[df["COORDENAÇÃO"] == coord]
+# aplicar filtro
+if "Todos" in coords_sel or len(coords_sel) == 0:
+    df_points = df.copy()
+    coords_ativos = coords
+else:
+    df_points = df[df["COORDENAÇÃO"].isin(coords_sel)]
+    coords_ativos = coords_sel
 
-def compute_bbox_center_zoom(df):
-    if df.empty:
-        return {"lat": -14.2350, "lon": -51.9253}, 3.5
-
-    lat_min, lat_max = df["latitude"].min(), df["latitude"].max()
-    lon_min, lon_max = df["longitude"].min(), df["longitude"].max()
-
-    center = {
-        "lat": (lat_min + lat_max) / 2,
-        "lon": (lon_min + lon_max) / 2
-    }
-
-    span = max(lat_max - lat_min, lon_max - lon_min)
-
-    if span > 30: zoom = 2.5
-    elif span > 15: zoom = 3
-    elif span > 8: zoom = 3.5
-    elif span > 4: zoom = 4
-    elif span > 2: zoom = 4.5
-    elif span > 1: zoom = 5
-    else: zoom = 6
-
-    return center, zoom
-
-# --------------------------------------------------
-# Aplicar filtros
-# --------------------------------------------------
-df_points = df_agg[
-    df_agg["COORDENAÇÃO"].isin([coord_1, coord_2])
-]
-
-# --------------------------------------------------
-# Separar CASA e LOJA
-# --------------------------------------------------
-df_casa = df_points[df_points["TIPO"] == "CASA"].copy()
-df_loja = df_points[df_points["TIPO"] == "LOJA"].copy()
-
-# --------------------------------------------------
-# Criar cores por coordenação
-# --------------------------------------------------
-coords = df_points["COORDENAÇÃO"].dropna().unique().tolist()
-
+# =========================
+# 🎨 CORES POR COORDENAÇÃO
+# =========================
 palette = (
     px.colors.qualitative.Dark24 +
     px.colors.qualitative.Alphabet +
@@ -139,79 +53,25 @@ palette = (
 )
 
 coord_to_color = {
-    coord_1: "#1f77b4",  # azul
-    coord_2: "#d62728"   # vermelho
+    c: palette[i % len(palette)] for i, c in enumerate(sorted(coords_ativos))
 }
 
-# --------------------------------------------------
-# Criar mapa base (CASA)
-# --------------------------------------------------
-fig = px.scatter_mapbox(
-    df_casa,
-    lat="latitude",
-    lon="longitude",
-    hover_name="CIDADE",
-    hover_data={
-        "COORDENAÇÃO": True,
-        "REGIONAL": True,
-        "latitude": False,
-        "longitude": False
-    },
-    height=600
-)
+# =========================
+# 📊 SEPARAR TIPOS
+# =========================
+df_loja = df_points[df_points["TIPO"] != "CASA"]
+df_casa = df_points[df_points["TIPO"] == "CASA"]
 
-fig.update_traces(
-    marker=dict(
-        size=14,
-        color="black",
-        opacity=0.7
-    ),
-    name="CASA",
-    showlegend=True
-)
+# =========================
+# 🗺️ CRIAR MAPA
+# =========================
+fig = go.Figure()
 
-# --------------------------------------------------
-# Polígonos
-# --------------------------------------------------
-for coord, df_coord in df_points.groupby("COORDENAÇÃO"):
-
-    if df_coord.empty:
-        continue
-
-    pts = df_coord[["longitude", "latitude"]].to_numpy()
-    pts = np.unique(pts, axis=0)
-
-    if len(pts) < 3:
-        continue
-
-    hull = ConvexHull(pts)
-
-    poly_lon = pts[hull.vertices, 0].tolist() + [pts[hull.vertices, 0][0]]
-    poly_lat = pts[hull.vertices, 1].tolist() + [pts[hull.vertices, 1][0]]
-
-    color = coord_to_color.get(coord) or "#555"
-
-    fig.add_trace(go.Scattermapbox(
-        lon=poly_lon,
-        lat=poly_lat,
-        mode="lines",
-        fill="toself",
-        fillcolor="rgba(80,80,80,0.08)",
-        line=dict(color=color, width=1.6),
-        hovertemplate="<b>Coordenação:</b> %{text}<extra></extra>",
-        text=[coord] * len(poly_lon),
-        showlegend=False
-    ))
-
-# --------------------------------------------------
-# LOJAS (camada superior)
-# --------------------------------------------------
+# 🔵 LOJAS (por coordenação)
 for coord, df_coord in df_loja.groupby("COORDENAÇÃO"):
 
     if df_coord.empty:
         continue
-
-    color = coord_to_color.get(coord) or "#000000"
 
     fig.add_trace(go.Scattermapbox(
         lat=df_coord["latitude"],
@@ -219,50 +79,48 @@ for coord, df_coord in df_loja.groupby("COORDENAÇÃO"):
         mode="markers",
         marker=dict(
             size=12,
-            color=color,
-            opacity=0.95
+            color=coord_to_color.get(coord, "#333333"),
+            opacity=0.9
         ),
         hovertext=df_coord["CIDADE"],
         text=df_coord["COORDENAÇÃO"],
         hovertemplate="<b>Cidade:</b> %{hovertext}<br><b>Coordenação:</b> %{text}<extra></extra>",
-        name="LOJA",
-        showlegend=False
+        name=coord,
+        showlegend=True
     ))
 
-# --------------------------------------------------
-# Layout
-# --------------------------------------------------
-center, zoom = compute_bbox_center_zoom(df_points)
+# ⚫ CASAS (preto)
+if not df_casa.empty:
+    fig.add_trace(go.Scattermapbox(
+        lat=df_casa["latitude"],
+        lon=df_casa["longitude"],
+        mode="markers",
+        marker=dict(
+            size=14,
+            color="black",
+            opacity=0.7
+        ),
+        hovertext=df_casa["CIDADE"],
+        hovertemplate="<b>CASA</b><br>Cidade: %{hovertext}<extra></extra>",
+        name="CASA",
+        showlegend=True
+    ))
 
+# =========================
+# ⚙️ CONFIG MAPA
+# =========================
 fig.update_layout(
-    mapbox_style="carto-positron",
-    mapbox_center=center,
-    mapbox_zoom=zoom,
-    mapbox_layers=[{
-        "source": geojson_br,
-        "type": "line",
-        "color": "black",
-        "line": {"width": 1},
-        "below": "traces"
-    }],
-    margin=dict(r=0, t=40, l=0, b=0),
-    title=f"Regional: {regional_sel} | Coordenador: {coord_sel}",
-    legend=dict(title="Tipo de Unidade")
+    mapbox_style="open-street-map",
+    mapbox_zoom=5,
+    mapbox_center={
+        "lat": df_points["latitude"].mean(),
+        "lon": df_points["longitude"].mean()
+    },
+    margin={"r":0,"t":40,"l":0,"b":0},
+    title="Distribuição de Lojas por Coordenador"
 )
 
-# --------------------------------------------------
-# Render
-# --------------------------------------------------
+# =========================
+# 📺 EXIBIR
+# =========================
 st.plotly_chart(fig, use_container_width=True)
-
-# --------------------------------------------------
-# Resumo
-# --------------------------------------------------
-st.markdown(
-    f"""
-    <p style="font-size:20px; font-weight:bold;">
-        Total: {len(df_points)} | CASA: {len(df_casa)} | LOJA: {len(df_loja)}
-    </p>
-    """,
-    unsafe_allow_html=True
-)
