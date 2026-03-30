@@ -23,6 +23,9 @@ st.title("🗺️ Mapa de Lojas por Coordenador")
 def load_data():
     return pd.read_csv("geodata.csv")
 
+st.write(df_loja[["latitude", "longitude"]].head())
+st.write(df_loja.dtypes)
+
 @st.cache_data
 def load_geojson():
     url = "https://raw.githubusercontent.com/codeforamerica/click_that_hood/master/public/data/brazil-states.geojson"
