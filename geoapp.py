@@ -163,7 +163,7 @@ for coord, df_coord in df_loja.groupby("COORDENAÇÃO"):
         marker=dict(
             size=12,
             symbol="diamond",
-            color=coord_to_color.get(coord, "black")  # 👈 cor dinâmica
+            color=coord_to_color.get(coord, "black"),  # 👈 cor dinâmica
             opacity=0.9
         ),
         hovertext=df_coord["CIDADE"],
