@@ -3,6 +3,7 @@ import pandas as pd
 import plotly.express as px
 import plotly.graph_objects as go
 from scipy.spatial import ConvexHull
+import numpy as np
 import requests
 
 # --------------------------------------------------
@@ -108,54 +109,101 @@ reg_filter, coord_filter = current_filters(regional_sel, coord_sel)
 df_points = filter_points(df_agg, reg_filter, coord_filter)
 
 # --------------------------------------------------
-# Mapa base (pontos)
+# Separar CASA e LOJA
+# --------------------------------------------------
+df_casa = df_points[df_points["TIPO"] == "CASA"].copy()
+df_loja = df_points[df_points["TIPO"] == "LOJA"].copy()
+
+# --------------------------------------------------
+# Criar mapa base (CASA)
 # --------------------------------------------------
 fig = px.scatter_mapbox(
-    df_points,
+    df_casa,
     lat="latitude",
     lon="longitude",
-    color="REGIONAL",
-    size="QTD_LOJAS",
     hover_name="CIDADE",
     hover_data={
         "COORDENAÇÃO": True,
-        "TIPO": True,
+        "REGIONAL": True,
         "latitude": False,
         "longitude": False
     },
     height=600
 )
 
-# --------------------------------------------------
-# Polígonos (Convex Hull)
-# --------------------------------------------------
-groups = df_points.groupby(["REGIONAL", "COORDENAÇÃO"])
+fig.update_traces(
+    marker=dict(
+        size=10,
+        symbol="circle",
+        color="black"
+    ),
+    name="CASA",
+    showlegend=True
+)
 
-for (regional, coord), df_group in groups:
-    pts = df_group[["longitude", "latitude"]].drop_duplicates().to_numpy()
+# --------------------------------------------------
+# Adicionar LOJAS
+# --------------------------------------------------
+fig.add_trace(go.Scattermapbox(
+    lat=df_loja["latitude"],
+    lon=df_loja["longitude"],
+    mode="markers",
+    marker=dict(
+        size=11,
+        symbol="diamond",
+        color="black"
+    ),
+    hovertext=df_loja["CIDADE"],
+    text=df_loja["COORDENAÇÃO"],
+    hovertemplate="<b>Cidade:</b> %{hovertext}<br><b>Coordenação:</b> %{text}<extra></extra>",
+    name="LOJA",
+    showlegend=True
+))
+
+# --------------------------------------------------
+# Polígonos por coordenação
+# --------------------------------------------------
+coords = df_points["COORDENAÇÃO"].dropna().unique().tolist()
+
+palette = (
+    px.colors.qualitative.Dark24 +
+    px.colors.qualitative.Alphabet +
+    px.colors.qualitative.Set3
+)
+
+coord_to_color = {
+    c: palette[i % len(palette)] for i, c in enumerate(sorted(coords))
+}
+
+for coord, df_coord in df_points.groupby("COORDENAÇÃO"):
+    pts = df_coord[["longitude", "latitude"]].dropna().to_numpy()
+    pts = np.unique(pts, axis=0)
 
     if len(pts) < 3:
         continue
 
     hull = ConvexHull(pts)
+
     poly_lon = pts[hull.vertices, 0].tolist() + [pts[hull.vertices, 0][0]]
     poly_lat = pts[hull.vertices, 1].tolist() + [pts[hull.vertices, 1][0]]
 
-    fig.add_trace(
-        go.Scattermapbox(
-            lon=poly_lon,
-            lat=poly_lat,
-            mode="lines",
-            fill="toself",
-            fillcolor="rgba(60,60,60,0.15)",
-            line=dict(width=0),
-            hovertemplate=f"<b>{coord}</b><br>Regional: {regional}<extra></extra>",
-            showlegend=False
-        )
-    )
+    fig.add_trace(go.Scattermapbox(
+        lon=poly_lon,
+        lat=poly_lat,
+        mode="lines",
+        fill="toself",
+        fillcolor="rgba(80,80,80,0.10)",
+        line=dict(
+            color=coord_to_color.get(coord, "#555"),
+            width=1.6
+        ),
+        hovertemplate="<b>Coordenação:</b> %{text}<extra></extra>",
+        text=[coord] * len(poly_lon),
+        showlegend=False
+    ))
 
 # --------------------------------------------------
-# Layout
+# Layout com zoom dinâmico
 # --------------------------------------------------
 center, zoom = compute_bbox_center_zoom(df_points)
 
@@ -163,17 +211,16 @@ fig.update_layout(
     mapbox_style="carto-positron",
     mapbox_center=center,
     mapbox_zoom=zoom,
-    mapbox_layers=[
-        {
-            "source": geojson_br,
-            "type": "line",
-            "color": "black",
-            "line": {"width": 1},
-            "below": "traces"
-        }
-    ],
+    mapbox_layers=[{
+        "source": geojson_br,
+        "type": "line",
+        "color": "black",
+        "line": {"width": 1},
+        "below": "traces"
+    }],
     margin=dict(r=0, t=40, l=0, b=0),
-    title=f"Regional: {regional_sel} | Coordenador: {coord_sel}"
+    title=f"Regional: {regional_sel} | Coordenador: {coord_sel}",
+    legend=dict(title="Tipo de Unidade")
 )
 
 # --------------------------------------------------
@@ -184,12 +231,14 @@ st.plotly_chart(fig, use_container_width=True)
 # --------------------------------------------------
 # Resumo
 # --------------------------------------------------
-total_lojas = int(df_points["QTD_LOJAS"].sum()) if not df_points.empty else 0
+total = len(df_points)
+total_casa = len(df_casa)
+total_loja = len(df_loja)
 
 st.markdown(
     f"""
-    <p style="font-size:22px; font-weight:bold;">
-        Total de lojas na seleção: {TIPO}
+    <p style="font-size:20px; font-weight:bold;">
+        Total: {total} | CASA: {total_casa} | LOJA: {total_loja}
     </p>
     """,
     unsafe_allow_html=True
