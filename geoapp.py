@@ -200,25 +200,25 @@ for coord, df_coord in df_points.groupby("COORDENAÇÃO"):
 # --------------------------------------------------
 # LOJAS (AGORA POR ÚLTIMO ✅)
 # --------------------------------------------------
-df_loja["cor"] = df_loja["COORDENAÇÃO"].map(coord_to_color)
-
-fig.add_trace(go.Scattermapbox(
-    lat=df_loja["latitude"],
-    lon=df_loja["longitude"],
-    mode="markers",
-    marker=dict(
-        size=13,
-        symbol="diamond",
-        color=df_loja["cor"],
-        line=dict(width=1, color="black"),
-        opacity=0.95
-    ),
-    hovertext=df_loja["CIDADE"],
-    text=df_loja["COORDENAÇÃO"],
-    hovertemplate="<b>Cidade:</b> %{hovertext}<br><b>Coordenação:</b> %{text}<extra></extra>",
-    name="LOJA",
-    showlegend=True
-))
+for coord, df_coord in df_loja.groupby("COORDENAÇÃO"):
+    
+    fig.add_trace(go.Scattermapbox(
+        lat=df_coord["latitude"],
+        lon=df_coord["longitude"],
+        mode="markers",
+        marker=dict(
+            size=13,
+            symbol="diamond",
+            color=coord_to_color.get(coord, "black"),
+            line=dict(width=1, color="black"),
+            opacity=0.95
+        ),
+        hovertext=df_coord["CIDADE"],
+        text=df_coord["COORDENAÇÃO"],
+        hovertemplate="<b>Cidade:</b> %{hovertext}<br><b>Coordenação:</b> %{text}<extra></extra>",
+        name="LOJA",
+        showlegend=False  # evita poluição
+    ))
 
 # --------------------------------------------------
 # Layout com zoom dinâmico
