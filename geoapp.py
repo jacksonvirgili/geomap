@@ -13,16 +13,31 @@ st.title("🗺️ Mapa de Lojas por Coordenador")
 # =========================
 df = pd.read_csv("geodata.csv")
 
-df["latitude"] = pd.to_numeric(df["latitude"], errors="coerce")
-df["longitude"] = pd.to_numeric(df["longitude"], errors="coerce")
+# corrigir vírgula decimal (IMPORTANTE pro seu caso)
+df["latitude"] = pd.to_numeric(df["latitude"].astype(str).str.replace(",", "."), errors="coerce")
+df["longitude"] = pd.to_numeric(df["longitude"].astype(str).str.replace(",", "."), errors="coerce")
+
 df = df.dropna(subset=["latitude", "longitude"])
+
+# =========================
+# 🔀 MODO DE DISTRIBUIÇÃO
+# =========================
+st.sidebar.header("Configuração")
+
+modo_coord = st.sidebar.radio(
+    "Distribuição",
+    options=["Atual", "Otimizada"],
+    index=0
+)
+
+coluna_coord = "COORDENAÇÃO" if modo_coord == "Atual" else "nova_coord"
 
 # =========================
 # 🎛️ FILTRO
 # =========================
 st.sidebar.header("Filtros")
 
-coords = sorted(df["COORDENAÇÃO"].dropna().unique())
+coords = sorted(df[coluna_coord].dropna().unique())
 
 coords_sel = st.sidebar.multiselect(
     "Coordenadores",
@@ -37,7 +52,7 @@ if "Todos" in coords_sel or len(coords_sel) == 0:
     df_points = df.copy()
     coords_ativos = coords
 else:
-    df_points = df[df["COORDENAÇÃO"].isin(coords_sel)]
+    df_points = df[df[coluna_coord].isin(coords_sel)]
     coords_ativos = coords_sel
 
 # =========================
@@ -49,7 +64,6 @@ palette = (
     px.colors.qualitative.Set3
 )
 
-# remover cores escuras
 def is_dark(color):
     if color.startswith("#"):
         color = color.lstrip("#")
@@ -67,12 +81,10 @@ def is_dark(color):
 
 palette = [c for c in palette if not is_dark(c)]
 
-# mapping de cores (CORRIGIDO - agora na ordem certa)
 coord_to_color = {
     c: palette[i % len(palette)] for i, c in enumerate(sorted(coords_ativos))
 }
 
-# função RGBA (FALTAVA)
 def hex_to_rgba(color, alpha=0.2):
     if color.startswith("#"):
         color = color.lstrip("#")
@@ -83,7 +95,7 @@ def hex_to_rgba(color, alpha=0.2):
         values = color.replace("rgb(", "").replace(")", "").split(",")
         r, g, b = [int(v.strip()) for v in values]
     else:
-        return color  # fallback
+        return color
 
     return f"rgba({r},{g},{b},{alpha})"
 
@@ -99,7 +111,7 @@ df_casa = df_points[df_points["TIPO"] == "CASA"]
 fig = go.Figure()
 
 # 🔷 ÁREA (Convex Hull)
-for coord, df_coord in df_loja.groupby("COORDENAÇÃO"):
+for coord, df_coord in df_loja.groupby(coluna_coord):
 
     if len(df_coord) < 3:
         continue
@@ -131,7 +143,7 @@ for coord, df_coord in df_loja.groupby("COORDENAÇÃO"):
         continue
 
 # 🔵 LOJAS
-for coord, df_coord in df_loja.groupby("COORDENAÇÃO"):
+for coord, df_coord in df_loja.groupby(coluna_coord):
 
     fig.add_trace(go.Scattermapbox(
         lat=df_coord["latitude"],
@@ -143,7 +155,7 @@ for coord, df_coord in df_loja.groupby("COORDENAÇÃO"):
             opacity=0.9
         ),
         hovertext=df_coord["CIDADE"],
-        text=df_coord["COORDENAÇÃO"],
+        text=df_coord[coluna_coord],
         hovertemplate="<b>Cidade:</b> %{hovertext}<br><b>Coordenação:</b> %{text}<extra></extra>",
         name=coord
     ))
@@ -160,7 +172,7 @@ if not df_casa.empty:
             opacity=0.7
         ),
         hovertext=df_casa["CIDADE"],
-        text=df_casa["COORDENAÇÃO"],
+        text=df_casa[coluna_coord],
         hovertemplate="<b>CASA</b><br>Cidade: %{hovertext}<br>Coordenação: %{text}<extra></extra>",
         name="CASA"
     ))
@@ -168,6 +180,8 @@ if not df_casa.empty:
 # =========================
 # ⚙️ CONFIG
 # =========================
+titulo = "Distribuição Atual" if modo_coord == "Atual" else "Distribuição Otimizada"
+
 fig.update_layout(
     mapbox_style="open-street-map",
     mapbox_zoom=5,
@@ -176,7 +190,7 @@ fig.update_layout(
         "lon": df_points["longitude"].mean()
     },
     margin={"r":0,"t":40,"l":0,"b":0},
-    title="Distribuição de Lojas por Coordenador"
+    title=f"{titulo} de Lojas por Coordenador"
 )
 
 st.plotly_chart(fig, use_container_width=True)
